@@ -1,8 +1,9 @@
+import time
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
-import time
 
 from xgboost import XGBClassifier
 from sklearn.metrics import log_loss
@@ -174,7 +175,6 @@ def inception_stem():
     output = Dense( 1, activation = 'sigmoid' ) ( dense2 )
 
     model = Model( [image_input, angle_input], output )
-    #model = Model( image_input, output )
     
     opt = Adam( lr = 1e-3, beta_1 = .9, beta_2 = .999, decay = 1e-3 )
 
@@ -247,9 +247,9 @@ def fit_and_predict_oof(X_train, X_angle_train, y_train, X_test, X_angle_test, b
 TEST = True # Should test data be passed to the model?
 DO_PLOT = False # Exploratory data plots
 USE_AUGMENTATION = False # Whether or not image augmentations should be made
-TRAIN_PATH = './data/train.json'
-TEST_PATH = './data/test.json'
-WEIGHT_SAVE_PATH = 'model_weights.hdf5'
+TRAIN_PATH = '../data/train.json'
+TEST_PATH = '../data/test.json'
+WEIGHT_SAVE_PATH = '../model_weights.hdf5'
 
 BATCH_SIZE = 32
 EPOCHS = 100 # Increase this
@@ -317,6 +317,6 @@ submission = pd.DataFrame()
 submission[ 'id' ] = test_data[ 'id' ]
 submission[ 'is_iceberg' ] = test_predictions.reshape( (test_predictions.shape[0]) )
 
-PREDICTION_SAVE_PATH = './submissions/test_submission_xgb_stacker.csv'
+PREDICTION_SAVE_PATH = '../submissions/test_submission_xgb_stacker.csv'
 submission.to_csv( PREDICTION_SAVE_PATH, index = False )
 print( 'Wrote test results to file %s' % str(PREDICTION_SAVE_PATH) )

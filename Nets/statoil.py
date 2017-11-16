@@ -1,8 +1,9 @@
+import time
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
-import time
 
 from sklearn.model_selection import train_test_split
 from keras.models import Model, Sequential
@@ -12,7 +13,7 @@ from keras.layers.merge import Concatenate, add
 from keras.optimizers import Adam
 from keras.preprocessing.image import ImageDataGenerator
 
-from utils import *
+from utils import generate_data, augment_data, get_callbacks
 
 def build_model( baseline_cnn = False ):
     #Based on kernel https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d
@@ -114,9 +115,9 @@ def build_model( baseline_cnn = False ):
 TEST = False # Should test data be passed to the model?
 DO_PLOT = False # Exploratory data plots
 USE_AUGMENTATION = False # Whether or not image augmentations should be made
-TRAIN_PATH = './data/train.json'
-TEST_PATH = './data/test.json'
-WEIGHT_SAVE_PATH = 'model_weights.hdf5'
+TRAIN_PATH = '../data/train.json'
+TEST_PATH = '../data/test.json'
+WEIGHT_SAVE_PATH = '../model_weights.hdf5'
 
 
 BATCH_SIZE = 32
@@ -184,5 +185,5 @@ if TEST:
     submission[ 'id' ] = test_data[ 'id' ]
     submission[ 'is_iceberg' ] = test_predictions.reshape( (test_predictions.shape[0]) )
 
-    PREDICTION_SAVE_PATH = './submissions/test_submission_twostage_resnet_avg_pool.csv'
+    PREDICTION_SAVE_PATH = '../submissions/test_submission_twostage_resnet_avg_pool.csv'
     submission.to_csv( PREDICTION_SAVE_PATH, index = False )

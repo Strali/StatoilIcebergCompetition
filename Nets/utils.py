@@ -47,9 +47,9 @@ def make_plots( data, band_samples = True, all_bands = True ):
         plot_all_bands( np_icebergs, 'Image bands for icebergs' )
 
 
-def get_callbacks( weight_save_path, no_improv_epochs = 10, min_delta = 1e-4 ):
+def get_callbacks( weight_save_path, log_path = './logs', no_improv_epochs = 10, min_delta = 1e-4 ):
     es = EarlyStopping( 'val_loss', patience = no_improv_epochs, mode = 'min', min_delta = min_delta )
-    ms = ModelCheckpoint( weight_save_path, 'val_loss', save_best_only = True )
+    ms = ModelCheckpoint( weight_save_path, 'val_loss', save_best_only = True ) 
     #ts = TensorBoard( log_dir = './logs', batch_size = 32 )
 
     return [ es, ms ]#, ts ]

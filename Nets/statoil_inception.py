@@ -1,8 +1,9 @@
+import time
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
-import time
 
 from sklearn.model_selection import train_test_split
 from keras.models import Model, Sequential
@@ -12,7 +13,7 @@ from keras.optimizers import Adam
 from keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
 from keras.preprocessing.image import ImageDataGenerator
 
-from utils import *
+from utils import generate_data, augment_data, get_callbacks
 
 def inception_stem():
     image_input = Input( shape = (75, 75, 3), name = 'images' )
@@ -65,12 +66,11 @@ def inception_stem():
     return model
 
 TEST = False # Should test data be passed to the model?
-DO_PLOT = False # Exploratory data plots
 USE_AUGMENTATION = True # Whether or not image augmentations should be made
-TRAIN_PATH = './data/train.json'
-TEST_PATH = './data/test.json'
-WEIGHT_SAVE_PATH = 'model_weights.hdf5'
-PREDICTION_SAVE_PATH = './submissions/test_submission.csv'
+TRAIN_PATH = '../data/train.json'
+TEST_PATH = '../data/test.json'
+WEIGHT_SAVE_PATH = '../model_weights.hdf5'
+PREDICTION_SAVE_PATH = '../submissions/test_submission.csv'
 
 if TEST:
     SEED = np.random.randint( 9999 )

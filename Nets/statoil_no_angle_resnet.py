@@ -1,8 +1,9 @@
+import time
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
-import time
 
 from sklearn.model_selection import train_test_split
 from keras.models import Model, Sequential
@@ -11,112 +12,67 @@ from keras.layers.merge import Concatenate, add
 from keras.optimizers import Adam
 from keras.preprocessing.image import ImageDataGenerator
 
-from utils import *
+from utils import generate_data, get_callbacks
 
 def build_model( baseline_cnn = False ):
-    #Based on kernel https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d
     image_input = Input( shape = (75, 75, 3), name = 'images' )
     angle_input = Input( shape = [1], name = 'angle' )
     activation = 'elu'
     bn_momentum = 0.99
+
+    img_1 = Conv2D( 32, kernel_size = (3, 3), activation = activation, padding = 'same' ) ((BatchNormalization(momentum=bn_momentum) ) ( image_input) )
+    img_1 = MaxPooling2D( (2,2)) (img_1 )
+    img_1 = Dropout( 0.2 )( img_1 )
+
+    img_1 = Conv2D( 64, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_1) )
+    img_1 = MaxPooling2D( (2,2) ) ( img_1 )
+    img_1 = Dropout( 0.2 )( img_1 )
+
+        # Residual block
+    img_2 = Conv2D( 128, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_1) )
+    img_2 = Dropout(0.2) ( img_2 )
+    img_2 = Conv2D( 64, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_2) )
+    img_2 = Dropout(0.2) ( img_2 )
     
-    # Simple CNN as baseline model
-    if baseline_cnn:
-        model = Sequential()
+    img_res_1 = add( [img_1, img_2] )
 
-        model.add( Conv2D(16, kernel_size = (3, 3), activation = 'relu', input_shape = (75, 75, 3)) )
-        model.add( BatchNormalization(momentum = bn_momentum) )
-        model.add( MaxPooling2D(pool_size = (3, 3), strides = (2, 2)) )
-        model.add( Dropout(0.2) )
+    #Residual block
+    img_3 = Conv2D( 128, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_res_1) )
+    img_3 = Dropout(0.2) ( img_3 )
+    img_3 = Conv2D( 64, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_3) )
+    img_3 = Dropout(0.2) ( img_3 )
 
-        model.add( Conv2D(32, kernel_size = (3, 3), activation = 'relu') )
-        model.add( BatchNormalization(momentum = bn_momentum) )
-        model.add( MaxPooling2D(pool_size = (2, 2), strides = (2, 2)) )
-        model.add( Dropout(0.2) )
+    img_res_2 = add( [img_res_1, img_3] )
 
-        model.add( Conv2D(64, kernel_size = (3, 3), activation = 'relu') )
-        model.add( BatchNormalization(momentum = bn_momentum) )
-        model.add( MaxPooling2D(pool_size = (2, 2), strides = (2, 2)) )
-        model.add( Dropout(0.2) )
+    # Filter resudial output
+    img_res_2 = Conv2D( 128, kernel_size = (3, 3), activation = activation ) ( (BatchNormalization(momentum=bn_momentum)) (img_res_2) )
+    img_res_2 = MaxPooling2D( (2,2) ) ( img_res_2 )
+    img_res_2 = Dropout( 0.2 )( img_res_2 )
+    img_res_2 = GlobalAveragePooling2D() ( img_res_2 )
+    
+    #cnn_out = ( Concatenate()( [img_res_2, BatchNormalization(momentum=bn_momentum)(angle_input)]) )
+    cnn_out = BatchNormalization( momentum = bn_momentum ) ( img_res_2 )
 
-        model.add( Conv2D(128, kernel_size = (3, 3), activation = 'relu') )
-        model.add( BatchNormalization(momentum = bn_momentum) )
-        model.add( MaxPooling2D(pool_size = (2, 2), strides = (2, 2)) )
-        model.add( Dropout(0.2) )
+    dense_layer = Dropout( 0.5 ) ( BatchNormalization(momentum=bn_momentum) (Dense(256, activation = activation) (cnn_out)) )
+    dense_layer = Dropout( 0.5 ) ( BatchNormalization(momentum=bn_momentum) (Dense(64, activation = activation) (dense_layer)) )
+    output = Dense( 1, activation = 'sigmoid' ) ( dense_layer )
+    
+    model = Model( image_input, output )
 
-        model.add( Flatten() )
+    opt = Adam( lr = 1e-3, beta_1 = .9, beta_2 = .999, decay = 1e-3 )
 
-        model.add( Dense(256, activation = 'relu') )
-        model.add( BatchNormalization(momentum = bn_momentum) )
-        model.add( Dropout(0.3) )
+    model.compile( loss = 'binary_crossentropy', optimizer = opt, metrics = ['accuracy'] )
 
-        model.add( Dense(128, activation = 'relu') )
-        model.add( BatchNormalization(momentum = bn_momentum) )
-        model.add( Dropout(0.3) )
-
-        model.add( Dense(1, activation = 'sigmoid') )
-
-        opt = Adam( lr = 1e-3, beta_1 = .9, beta_2 = .999, decay = 1e-3 )
-
-        model.compile( loss = 'binary_crossentropy', optimizer = opt, metrics = ['accuracy'] )
-
-        model.summary()
-
-    else:
-        img_1 = Conv2D( 32, kernel_size = (3, 3), activation = activation, padding = 'same' ) ((BatchNormalization(momentum=bn_momentum) ) ( image_input) )
-        img_1 = MaxPooling2D( (2,2)) (img_1 )
-        img_1 = Dropout( 0.2 )( img_1 )
-
-        img_1 = Conv2D( 64, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_1) )
-        img_1 = MaxPooling2D( (2,2) ) ( img_1 )
-        img_1 = Dropout( 0.2 )( img_1 )
-  
-         # Residual block
-        img_2 = Conv2D( 128, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_1) )
-        img_2 = Dropout(0.2) ( img_2 )
-        img_2 = Conv2D( 64, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_2) )
-        img_2 = Dropout(0.2) ( img_2 )
-        
-        img_res_1 = add( [img_1, img_2] )
-
-        #Residual block
-        img_3 = Conv2D( 128, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_res_1) )
-        img_3 = Dropout(0.2) ( img_3 )
-        img_3 = Conv2D( 64, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_3) )
-        img_3 = Dropout(0.2) ( img_3 )
-
-        img_res_2 = add( [img_res_1, img_3] )
-
-        # Filter resudial output
-        img_res_2 = Conv2D( 128, kernel_size = (3, 3), activation = activation ) ( (BatchNormalization(momentum=bn_momentum)) (img_res_2) )
-        img_res_2 = MaxPooling2D( (2,2) ) ( img_res_2 )
-        img_res_2 = Dropout( 0.2 )( img_res_2 )
-        img_res_2 = GlobalAveragePooling2D() ( img_res_2 )
-        
-        #cnn_out = ( Concatenate()( [img_res_2, BatchNormalization(momentum=bn_momentum)(angle_input)]) )
-        cnn_out = BatchNormalization( momentum = bn_momentum ) ( img_res_2 )
-
-        dense_layer = Dropout( 0.5 ) ( BatchNormalization(momentum=bn_momentum) (Dense(256, activation = activation) (cnn_out)) )
-        dense_layer = Dropout( 0.5 ) ( BatchNormalization(momentum=bn_momentum) (Dense(64, activation = activation) (dense_layer)) )
-        output = Dense( 1, activation = 'sigmoid' ) ( dense_layer )
-        
-        model = Model( image_input, output )
-
-        opt = Adam( lr = 1e-3, beta_1 = .9, beta_2 = .999, decay = 1e-3 )
-
-        model.compile( loss = 'binary_crossentropy', optimizer = opt, metrics = ['accuracy'] )
-
-        model.summary()
+    model.summary()
 
     return model
 
  
 TEST = False # Should test data be passed to the model?
-DO_PLOT = False # Exploratory data plots
 USE_AUGMENTATION = False # Whether or not image augmentations should be made
-TRAIN_PATH = './data/train.json'
-TEST_PATH = './data/test.json'
-WEIGHT_SAVE_PATH = 'model_weights.hdf5'
+TRAIN_PATH = '../data/train.json'
+TEST_PATH = '../data/test.json'
+WEIGHT_SAVE_PATH = '../model_weights.hdf5'
 
 
 BATCH_SIZE = 32
@@ -133,9 +89,6 @@ else:
 
 X = generate_data( train_data )
 y = train_data[ 'is_iceberg' ]
-
-if DO_PLOT:
-    make_plots( train_data, band_samples = True, all_bands = True )
 
 X_train, X_val, y_train, y_val = train_test_split( X, y, train_size = .8, random_state = SEED )
 callback_list = get_callbacks( WEIGHT_SAVE_PATH, 20 )
@@ -180,5 +133,5 @@ if TEST:
     submission[ 'id' ] = test_data[ 'id' ]
     submission[ 'is_iceberg' ] = test_predictions.reshape( (test_predictions.shape[0]) )
 
-    PREDICTION_SAVE_PATH = './submissions/test_submission_.csv'
+    PREDICTION_SAVE_PATH = '../submissions/test_submission_.csv'
     submission.to_csv( PREDICTION_SAVE_PATH, index = False )

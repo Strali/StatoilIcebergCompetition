@@ -1,8 +1,9 @@
+import time
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import h5py
-import time
 
 from sklearn.model_selection import train_test_split
 from keras.models import Model, Sequential
@@ -11,7 +12,7 @@ from keras.layers.merge import Concatenate, add
 from keras.optimizers import Adam
 from keras.preprocessing.image import ImageDataGenerator
 
-from utils import *
+from utils import generate_data, get_callbacks, augment_data
 
 def build_model( baseline_cnn = False ):
     #Based on kernel https://www.kaggle.com/devm2024/keras-model-for-beginners-0-210-on-lb-eda-r-d
@@ -71,7 +72,7 @@ def build_model( baseline_cnn = False ):
         img_1 = MaxPooling2D( (2,2) ) ( img_1 )
         img_1 = Dropout( 0.2 )( img_1 )
   
-         # Residual block
+        # Residual block
         img_2 = Conv2D( 128, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_1) )
         img_2 = Dropout(0.2) ( img_2 )
         img_2 = Conv2D( 64, kernel_size = (3, 3), activation = activation, padding = 'same' ) ( (BatchNormalization(momentum=bn_momentum)) (img_2) )
@@ -103,12 +104,10 @@ def build_model( baseline_cnn = False ):
 
  
 TEST = True # Should test data be passed to the model?
-DO_PLOT = False # Exploratory data plots
 USE_AUGMENTATION = False # Whether or not image augmentations should be made
-TRAIN_PATH = './data/train.json'
-TEST_PATH = './data/test.json'
-WEIGHT_SAVE_PATH = 'model_weights.hdf5'
-
+TRAIN_PATH = '../data/train.json'
+TEST_PATH = '../data/test.json'
+WEIGHT_SAVE_PATH = '../model_weights.hdf5'
 
 BATCH_SIZE = 32
 EPOCHS = 100 # Increase this
@@ -117,7 +116,7 @@ train_data = pd.read_json( TRAIN_PATH )
 train_data[ 'inc_angle' ] = train_data[ 'inc_angle' ].replace('na', 0)
 train_data[ 'inc_angle' ] = train_data[ 'inc_angle' ].astype(float).fillna(0.0)
 
-for i in range( 5, 10 ): 
+for i in range( 0, 5 ): 
     if TEST:
         SEED = np.random.randint( 9999 )
     else:
@@ -126,9 +125,6 @@ for i in range( 5, 10 ):
     X = generate_data( train_data )
     X_a = train_data[ 'inc_angle' ]
     y = train_data[ 'is_iceberg' ]
-
-    if DO_PLOT:
-        make_plots( train_data, band_samples = True, all_bands = True )
 
     X_train, X_val, X_angle_train, X_angle_val, y_train, y_val = train_test_split( X, X_a, y, train_size = .8, random_state = SEED )
     callback_list = get_callbacks( WEIGHT_SAVE_PATH, 20 )
@@ -176,5 +172,5 @@ for i in range( 5, 10 ):
         submission[ 'id' ] = test_data[ 'id' ]
         submission[ 'is_iceberg' ] = test_predictions.reshape( (test_predictions.shape[0]) )
 
-        PREDICTION_SAVE_PATH = './submissions/test_submission_' + str(i) + '.csv'
+        PREDICTION_SAVE_PATH = '../submissions/test_submission_' + str(i) + '.csv'
         submission.to_csv( PREDICTION_SAVE_PATH, index = False )
