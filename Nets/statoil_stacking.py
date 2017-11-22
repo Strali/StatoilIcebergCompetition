@@ -206,9 +206,13 @@ def fit_and_predict_oof(X_train, X_angle_train, y_train, X_test, X_angle_test, b
                                             zoom_range = .1 )
     for i, clf in enumerate(base_models):
         print( '\nFitting model {}/{}'.format(i+1, int(len(base_models))) )
+        model_start = time.time()
         S_test_i = np.zeros((X_test.shape[0], n_splits))
 
         for j, (train_idx, val_idx) in enumerate(folds):
+            print('\nFitting to fold {}/{}'.format(j+1, n_splits))
+            fold_start = time.time()
+
             X_fold_train = X_train[train_idx]
             X_fold_angle = X_angle_train[train_idx]
             y_fold_train = y_train[train_idx]
@@ -216,23 +220,29 @@ def fit_and_predict_oof(X_train, X_angle_train, y_train, X_test, X_angle_test, b
             X_val_angle = X_angle_train[val_idx]
             y_val = y_train[val_idx]
 
-            if (i == 0): 
-                clf.fit( [X_train, X_angle_train], y_train, batch_size = BATCH_SIZE, epochs = EPOCHS, verbose = 1, 
+            model = get_model(clf)
+            if ((clf == 'm1') or (clf == 'm6')): 
+                model.fit( [X_train, X_angle_train], y_train, batch_size = BATCH_SIZE, epochs = EPOCHS, verbose = 2, 
                            validation_data = ([X_val, X_val_angle], y_val), callbacks = callback_list )
 
             else:
                 input_generator = augment_data( image_augmentation, X_fold_train, X_fold_angle, y_fold_train, batch_size = BATCH_SIZE )
 
-                clf.fit_generator( input_generator, steps_per_epoch = 4096/BATCH_SIZE, epochs = EPOCHS,
-                                    callbacks = callback_list, verbose = 1, 
+                model.fit_generator( input_generator, steps_per_epoch = 4096/BATCH_SIZE, epochs = EPOCHS,
+                                    callbacks = callback_list, verbose = 2, 
                                     validation_data = augment_data(image_augmentation, X_val, X_val_angle, y_val, batch_size = BATCH_SIZE),
                                     validation_steps = len(X_val)/BATCH_SIZE )
 
-            y_pred = clf.predict([X_val, X_val_angle])             
+            y_pred = model.predict([X_val, X_val_angle])             
 
             S_train[val_idx, i] = y_pred.reshape((y_pred.shape[0]))
-            S_test_i[:, j] = clf.predict([X_test, X_a_test]).reshape(X_test.shape[0])
+            S_test_i[:, j] = model.predict([X_test, X_a_test]).reshape(X_test.shape[0])
+
+            m, s = divmod( time.time() - fold_start, 60 )
+            print( 'Time to fit model to fold: {}m {}s'.format(int(m), int(s)) )
         S_test[:, i] = S_test_i.mean(axis=1)
+
+        m, s = divmod( time.time() - model_start, 60 )
         print( 'Time to fit model {} to all folds: {}m {}s'.format(i+1, int(m), int(s)) )
 
     results = cross_val_score(stacker, S_train, y_train, cv = 5, scoring = 'neg_log_loss')
@@ -243,6 +253,36 @@ def fit_and_predict_oof(X_train, X_angle_train, y_train, X_test, X_angle_test, b
     res = stacker.predict_proba(S_test)[:,1]
     return res
 
+def get_model(name):
+    if (name == 'm1'):
+        # 2-block ResNet without image augmentation 
+        model = build_model()
+    elif (name == 'm2'):
+        # 2-block ResNet with image augmentation
+        model = build_model()
+    elif (name == 'm3'):
+        # 2-block ResNet with image augmentation and ReLU activation
+        model = build_model(activation = 'relu')
+    elif (name == 'm4'):
+        # 2-block ResNet with image augmentation and higher initial learning rate
+        model = build_model(l_rate = 2e-3)
+    elif (name == 'm5'):
+        # 1-block ResNet with image augmentation and ReLU activation
+        model = build_model(n_resblocks = 1, activation = 'relu')
+    elif (name == 'm6'):
+        # 1-block ResNet with image augmentation
+        model = build_model(n_resblocks = 1)
+    elif (name == 'm7'):
+        # 3-block ResNet with image augmentation
+        model = deeper_resnet()
+    elif (name == 'm8'):
+        # Network based on inception stem with image augmentation
+        model = inception_stem()
+    else:
+        print('Model unspecified')
+        exit()
+    
+    return model
 
 TEST = True # Should test data be passed to the model?
 DO_PLOT = False # Exploratory data plots
@@ -273,42 +313,28 @@ X_a_test = test_data[ 'inc_angle' ]
 
 print( 'DATA LOADED' )
 
-callback_list = get_callbacks( WEIGHT_SAVE_PATH, 15 )
+callback_list = get_callbacks( WEIGHT_SAVE_PATH, no_improv_epochs = 15 )
 
 # build_model( n_resblocks = 2, activation = 'elu', l_rate = 1e-3 )
-m1 = build_model()
-print( 'BUILD FIRST MODEL' )
-m2 = build_model()
-print( 'BUILT SECOND MODEL' )
-m3 = build_model(activation = 'relu')
-print( 'BUILD THIRD MODEL' )
-m4 = build_model(l_rate = 2e-3)
-print( 'BUILT FOURTH MODEL' )
-m5 = build_model(n_resblocks = 1, activation = 'relu')
-print( 'BUILT FIFTH MODEL' )
-m6 = build_model(n_resblocks = 1)
-print( 'BUILT SIXTH MODEL' )
-m7 = deeper_resnet()
-print( 'BUILT ALL MODELS' )
-
-base_models = [m1, m2, m3, m4, m5, m6, m7]
-#base_models = [m1, m2]
+base_models = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6']
+#base_models = ['m1', 'm6']
 xgb_params = {
-    'objective': 'binary:logistic',
-    'learning_rate': 0.01,
-    'n_estimators': 490,
     'max_depth': 4,
+    'learning_rate': 0.01,
+    'n_estimators': 750,
     'subsample': 0.9,
     'colsample_bytree': 0.8,
-    'min_child_weight': 10
+    'min_child_weight': 10,
+    'nthread': -1,
+    'objective': 'binary:logistic'
 }
-stacker = XGBClassifier(xgb_params)
+stacker = XGBClassifier(**xgb_params)
 print( 'DEFINED STACKER' )
 start_time = time.time()
 
 # fit_and_predict_oof(X_train, X_angle_train, y_train, X_test, X_angle_test, base_models, stacker, n_splits = 5)
 print( 'FITTING MODELS AND MAKING OOF PREDICTIONS' )
-test_predictions = fit_and_predict_oof( X, X_a, y, X_test, X_a_test, base_models, stacker, n_splits = len(base_models))
+test_predictions = fit_and_predict_oof( X, X_a, y, X_test, X_a_test, base_models, stacker, n_splits = 5)
 
 m, s = divmod( time.time() - start_time, 60 )
 print( 'Model fitting done. Total time: {}m {}s'.format(int(m), int(s)) )
@@ -317,6 +343,6 @@ submission = pd.DataFrame()
 submission[ 'id' ] = test_data[ 'id' ]
 submission[ 'is_iceberg' ] = test_predictions.reshape( (test_predictions.shape[0]) )
 
-PREDICTION_SAVE_PATH = '../submissions/test_submission_xgb_stacker.csv'
+PREDICTION_SAVE_PATH = '../submissions/test_submission_xgb_stacker_5.csv'
 submission.to_csv( PREDICTION_SAVE_PATH, index = False )
-print( 'Wrote test results to file %s' % str(PREDICTION_SAVE_PATH) )
+print( 'Wrote test results to file %s' % str(PREDICTION_SAVE_PATH) )    

@@ -96,7 +96,6 @@ X_a = train_data[ 'inc_angle' ]
 y = train_data[ 'is_iceberg' ]
 
 folds = list(StratifiedKFold(n_splits = N_SPLITS, shuffle = True, random_state = SEED).split(X, y))
-
 callback_list = get_callbacks( WEIGHT_SAVE_PATH, 15 )
 
 start_time = time.time()
@@ -149,8 +148,7 @@ else:
     model.fit( [X_train, X_angle_train], y_train, batch_size = BATCH_SIZE, epochs = EPOCHS, verbose = 1, 
             validation_data = ([X_val, X_angle_val], y_val), callbacks = callback_list )
 
-
-
+m, s = divmod( time.time() - start_time, 60 )
 print( 'Model fitting done. Total time: {}m {}s'.format(int(m), int(s)) )
 
 if TEST:

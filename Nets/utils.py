@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
+from keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 
 def plot_band_samples( data, band = 1, title = None ):
     fig = plt.figure( 1, figsize=(15, 15) )
@@ -51,8 +51,10 @@ def get_callbacks( weight_save_path, log_path = './logs', no_improv_epochs = 10,
     es = EarlyStopping( 'val_loss', patience = no_improv_epochs, mode = 'min', min_delta = min_delta )
     ms = ModelCheckpoint( weight_save_path, 'val_loss', save_best_only = True ) 
     #ts = TensorBoard( log_dir = './logs', batch_size = 32 )
+    rl = ReduceLROnPlateau(monitor = 'val_loss', factor = 0.4, verbose = 1,
+                           patience = int(no_improv_epochs/2), min_lr = 5e-6)
 
-    return [ es, ms ]#, ts ]
+    return [ es, ms, rl ]#, ts ]
 
 def generate_data( data ):
     X_band_1=np.array( [np.array(band).astype(np.float32).reshape(75, 75) 
